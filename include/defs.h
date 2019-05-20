@@ -277,6 +277,8 @@ struct AP_info
 	int marked;
 	int marked_color;
 	struct WPS_info wps;
+	int32_t SNR;   /*SNR */
+	double frequency; /*Frequency of the access-point   */
 	double distance;  /*Distance of the access-point from source*/
 };
 /* linked list of detected clients */
@@ -307,6 +309,8 @@ struct ST_info
 	float gps_loc_min[5]; /* min gps coordinates      */
 	float gps_loc_max[5]; /* max gps coordinates      */
 	float gps_loc_best[5]; /* best gps coordinates     */
+	int32_t SNR;   /*SNR */
+	double frequency; /*Frequency of the station  */
 	double distance; /*Distance of the station from source*/
 	/*  Not used yet		  */
 };

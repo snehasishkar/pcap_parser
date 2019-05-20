@@ -35,6 +35,10 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <boost/thread.hpp>
+#include <chrono>
+#include <ctime>
+#include <pwd.h>
+#include <sys/inotify.h>
 
 #include "../include/defs.h"
 #include "../include/uniqueiv.h"
@@ -46,14 +50,13 @@
 #define BROADCAST (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF"
 // BSSID const. length of 6 bytes; can be together with all the other types
 #define IVS2_BSSID 0x0001
+#define EVENT_SIZE  ( sizeof (struct inotify_event) )
+#define EVENT_BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
+#define R_EARTH 6378
+#define PI 3.1415926535897
 
 using namespace std;
 
-pcap_t *descr;
-//struct globals G;
-FILE *logfile;
-struct sockaddr_in source,dest;
-time_t start;
 int ivs_only=1;
 const unsigned char ZERO[33] = {0x00};
 
@@ -313,8 +316,10 @@ char *get_manufacturer(unsigned char mac0, unsigned char mac1, unsigned char mac
 	{
 		// If the file exist, then query it each time we need to get a
 		// manufacturer.
-		fp = fopen("oui.txt", "r");
-
+		fp = fopen("../config/oui.txt", "r");
+        if(fp==NULL){
+        	vipl_printf("error: manufacturers list file not present", error_lvl, __FILE__, __LINE__);
+        }
 		if (fp != NULL)
 		{
 
@@ -449,9 +454,9 @@ int is_filtered_essid(unsigned char * essid)
 	return (ret);
 }
 
-float wifi_distance(int freq, int siglev)
+double wifi_distance(int32_t freq, int32_t siglev)
 {
-  float exp = (27.55 - (20 * log10(freq)) + abs(siglev)) / 20.0;
+  double exp = (27.55 - (20 * log10(freq)) + abs(siglev)) / 20.0;
   return pow(10.0, exp);
 }
 
@@ -466,6 +471,8 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	struct radiotap_header *rtaphdr;
 	rtaphdr = (struct radiotap_header *) packet;
 	offset = rtaphdr->it_len;
+	int32_t SNR = packet[14];
+	int32_t signal_strength = packet[15] - 256;
 	const u_char *h80211;
 	h80211 = packet + offset;
 	int i, n, seq, msd, dlen, clen, o;
@@ -536,7 +543,6 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 			if (memcmp(G.f_bssid, bssid, 6) != 0) return;
 		}
 	}
-
 	/* update our chained list of access points */
 
 	ap_cur = G.ap_1st;
@@ -562,7 +568,6 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 
 		/* if mac is listed as unknown, remove it */
 		remove_namac(bssid);
-		fprintf(stdout,"BSSID: %02X:%02X:%02X:%02X:%02X:%02X\n", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
 		memset(ap_cur, 0, sizeof(struct AP_info));
 
 		if (G.ap_1st == NULL)
@@ -576,14 +581,15 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 			ap_cur->manuf = get_manufacturer(
 				ap_cur->bssid[0], ap_cur->bssid[1], ap_cur->bssid[2]);
 		}
-
+        ap_cur->distance = 0;
+        ap_cur->frequency = 0;
 		ap_cur->nb_pkt = 0;
 		ap_cur->prev = ap_prv;
 
 		ap_cur->tinit = time(NULL);
 		ap_cur->tlast = time(NULL);
 
-		ap_cur->avg_power = -1;
+		ap_cur->avg_power = signal_strength;
 		ap_cur->best_power = -1;
 		ap_cur->power_index = -1;
 
@@ -658,7 +664,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	/* update the last time seen */
 
 	ap_cur->tlast = time(NULL);
-
+    ap_cur->SNR = SNR;
 	/* only update power if packets comes from
 	 * the AP: either type == mgmt and SA == BSSID,
 	 * or FromDS == 1 and ToDS == 0 */
@@ -690,7 +696,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 			}
 		}
 		else
-			ap_cur->avg_power = -1;
+			ap_cur->avg_power = signal_strength;
 
 		/* every packet in here comes from the AP */
 
@@ -765,14 +771,10 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 		default:
 			goto skip_station;
 	}
-	const u_char *rssi; // received signal strength
-	rssi = packet + 30;
-	signed int rssiDbm;
-	rssiDbm = rssi[0] - 256;
-	ap_cur->avg_power = rssiDbm;
-	//ap_cur->distance = wifi_distance(2462, ap_cur->avg_power);
-	fprintf(stdout, "power:%3d\n",rssiDbm);
-	//ap_cur->distance = wifi_distance(freq, rssiDbm);
+	ap_cur->avg_power = signal_strength;
+	ap_cur->frequency = rf_tap->freq;
+	ap_cur->distance = wifi_distance(ap_cur->frequency/1000000.0, ap_cur->avg_power);
+
 	/* update our chained list of wireless stations */
 
 	st_cur = G.st_1st;
@@ -813,7 +815,8 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 			st_cur->manuf = get_manufacturer(
 				st_cur->stmac[0], st_cur->stmac[1], st_cur->stmac[2]);
 		}
-
+        st_cur->distance = 0;
+        st_cur->frequency = 0;
 		st_cur->nb_pkt = 0;
 
 		st_cur->prev = st_prv;
@@ -832,6 +835,10 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 		st_cur->qos_fr_ds = 0;
 		st_cur->qos_to_ds = 0;
 		st_cur->channel = 0;
+        st_cur->frequency = rf_tap->freq;
+        st_cur->power = signal_strength;
+        st_cur->distance = wifi_distance(st_cur->frequency/1000000.0, st_cur->power);
+        st_cur->SNR = SNR;
 
 		gettimeofday(&(st_cur->ftimer), NULL);
 
@@ -865,20 +872,20 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	if (((h80211[1] & 3) == 0 && memcmp(h80211 + 10, bssid, 6) != 0)
 		|| ((h80211[1] & 3) == 1))
 	{
-		/*st_cur->power = ri->ri_power;
-		if (ri->ri_power > st_cur->best_power)
+		st_cur->power = signal_strength;
+		if (signal_strength > st_cur->best_power)
 		{
-			st_cur->best_power = ri->ri_power;
+			st_cur->best_power = signal_strength;
 			memcpy(
 				ap_cur->gps_loc_best, G.gps_loc, sizeof(st_cur->gps_loc_best));
 		}
-
+#if 0
 		st_cur->rate_from = ri->ri_rate;
 		if (ri->ri_channel > 0 && ri->ri_channel <= HIGHEST_CHANNEL)
 			st_cur->channel = ri->ri_channel;
 		else
-			st_cur->channel = G.channel[cardnum];*/
-
+			st_cur->channel = G.channel[cardnum];
+#endif
 		if (G.gps_loc[0] > st_cur->gps_loc_max[0])
 			st_cur->gps_loc_max[0] = G.gps_loc[0];
 		if (G.gps_loc[1] > st_cur->gps_loc_max[1])
@@ -1789,27 +1796,27 @@ skip_probe:
                     	         ap_cur->bssid[3],
                     	         ap_cur->bssid[4],
                     	         ap_cur->bssid[5]);
-                    sprintf(path, "/var/lib/wifi/handshake/ap-%s.%s", bssid, "ivs");
+                    sprintf(path, "/var/lib/wifi_handshake/ap-%s.%s", bssid, "ivs");
                     FILE *fp = fopen(path, "r");
                     if(!fp)
                     	fp = fopen(path, "w");
+                    if(fp==NULL)
+                    	vipl_printf("error: unable to write to wifi-handshake folder", error_lvl, __FILE__, __LINE__);
                     if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
-                 	    perror("fwrite(IV header) failed");
+                 	    //vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
                  	    //return (1);
                  	}
                     if (ivs2.flags & IVS2_BSSID)
                    	{
                    	    if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
                    	    {
-                   		    perror("fwrite(IV bssid) failed");
-                   		    //return (1);
+                   	    	//vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
                    	    }
                    	    ivs2.len -= 6;
                    	}
                     if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
                  	{
-                 	   perror("fwrite(IV wpa_hdsk) failed");
-                 	   //return (1);
+                       //vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
                  	}
                  	fclose(fp);
 				}
@@ -2006,7 +2013,6 @@ write_packet:
 			}
 		}
 	}
-	//pcap_dump(args, pkh, packet);
 	return;
 }
 
@@ -2084,12 +2090,6 @@ int dump_write_json(char *json_filename){
     struct AP_info *ap_cur;
     struct ST_info *st_cur;
     char * temp;
-    // if (! G.record_data || !G.output_format_json)
-    //        return 0;
-
-    //append
-    // fseek( json, 0, SEEK_END );
-
     //append AP info
     time_t rawtime;
     struct tm * timeinfo;
@@ -2117,20 +2117,21 @@ int dump_write_json(char *json_filename){
              ap_cur = ap_cur->next;
              continue;
         }
-        if(count ==0x00){
-              fprintf(json,"{\"index\" : {\"_index\": \"vnfsdb-%d%d%d\", \"_type\": \"l4\", \"_id\": \"%02X%02X%02X%02X%02X%02X%lu\" } }\r\n",timeinfo->tm_year + 1900,timeinfo->tm_mon + 1,timeinfo->tm_mday,ap_cur->bssid[0], ap_cur->bssid[1],ap_cur->bssid[2], ap_cur->bssid[3],ap_cur->bssid[4], ap_cur->bssid[5],(unsigned long)time(NULL));
-              count++;
-        }else{
-               fprintf(json,"\r{\"index\" : {\"_index\": \"vnfsdb-%d%d%d\", \"_type\": \"l4\", \"_id\": \"%02X%02X%02X%02X%02X%02X%lu\" } }\r\n",timeinfo->tm_year + 1900,timeinfo->tm_mon + 1,timeinfo->tm_mday,ap_cur->bssid[0], ap_cur->bssid[1],ap_cur->bssid[2], ap_cur->bssid[3],ap_cur->bssid[4], ap_cur->bssid[5],(unsigned long)time(NULL));
-        }
         struct timeval start;
         gettimeofday(&start,NULL);
-        fprintf(json, "{\"session\" : {\"start_time\" : %lld, \"end_time\" : %lld},  \"BSSID\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ", 	\
-        		(long long int)((start.tv_sec*1000)+(start.tv_usec/1000)), \
-                                     (long long int)((start.tv_sec*1000)+(start.tv_usec/1000)),	\
-                                     ap_cur->bssid[0], ap_cur->bssid[1],	\
-                                     ap_cur->bssid[2], ap_cur->bssid[3],	\
-                                     ap_cur->bssid[4], ap_cur->bssid[5] );
+        if(count==0x00){
+        	 fprintf(json, "{\"BSSID\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ", 	\
+        	                            ap_cur->bssid[0], ap_cur->bssid[1],	\
+        	                            ap_cur->bssid[2], ap_cur->bssid[3],	\
+        	                            ap_cur->bssid[4], ap_cur->bssid[5] );
+        	 count++;
+        }
+        else{
+        	fprintf(json, "\r{\"BSSID\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ", 	\
+        	  	                       ap_cur->bssid[0], ap_cur->bssid[1],	\
+        	  	                       ap_cur->bssid[2], ap_cur->bssid[3],	\
+        	  	                       ap_cur->bssid[4], ap_cur->bssid[5] );
+        }
 
 	            ltime = localtime( &ap_cur->tinit );
 	            fprintf( json, "\"FirstTimeSeen\":\"%04d-%02d-%02d %02d:%02d:%02d\", ",	\
@@ -2190,6 +2191,8 @@ int dump_write_json(char *json_filename){
                         ap_cur->nb_bcn,    \
                         ap_cur->nb_data );
 
+                fprintf( json, "\"SNR\":%3d, \"Frequency\":%.3f, \"Distance\":%.6f, ", ap_cur->SNR, ap_cur->frequency, ap_cur->distance);
+
                 fprintf( json, "\"GATEWAY\":\"%3d.%3d.%3d.%3d\", ",
                         ap_cur->lanip[0], ap_cur->lanip[1],  \
                         ap_cur->lanip[2], ap_cur->lanip[3] );
@@ -2197,7 +2200,7 @@ int dump_write_json(char *json_filename){
                 fprintf( json, "\"ID-length\":%3d, ", ap_cur->ssid_length);
 
 	        temp = format_text_for_csv(ap_cur->essid, ap_cur->ssid_length);
-                fprintf( json, "\"ESSID\":\"%s\", ", temp );
+                fprintf( json, "\"ESSID\":\"%s\", ", ap_cur->essid );
 	        free(temp);
 
                 if(ap_cur->key != NULL)
@@ -2214,8 +2217,13 @@ int dump_write_json(char *json_filename){
 
 	            fprintf(json,"\"Manufacturer\":\"%s\", ",ap_cur->manuf);
                 double lt,ln;
-                lt = ap_cur->gps_loc_best[0];
-                ln = ap_cur->gps_loc_best[1];
+                double x, y;
+                x = ((ap_cur->distance/1000)/R_EARTH) * (180.0/PI);
+                lt = ap_cur->gps_loc_best[0] = rf_tap->latitude + x;
+                ln = ap_cur->gps_loc_best[1] = rf_tap->longitude + (x/cos(lt * PI/180.0));
+                ap_cur->gps_loc_max[0] = lt;
+                ap_cur->gps_loc_max[1] = ln;
+                ap_cur->gps_loc_best[2] = rf_tap->altitude;
                 if(lt || ln){
                 fprintf( json, "\"ap_geo_location\":{\"lat\":%.6f, ",
                                         ap_cur->gps_loc_best[0] );
@@ -2233,8 +2241,6 @@ int dump_write_json(char *json_filename){
                 fprintf( json, "\"lon\":%.6f}, ",
                                         ap_cur->gps_loc_max[1] );
 
-                //fprintf( json, "\"ALTITUDE\":%.6f, ",
-                                       // ap_cur->gps_loc_max[2] );
                 }
                 //terminate json AP data
                 fprintf(json,"\"wlan_type\":\"AP\",\"timestamp\":\"%d\"}",(int)time(NULL));
@@ -2260,18 +2266,20 @@ int dump_write_json(char *json_filename){
                         st_cur = st_cur->next;
                         continue;
                }
-               if(count ==0x00){
-              	        fprintf(json,"{\"index\" : {\"_index\": \"vnfsdb-%d%d%d\", \"_type\": \"l4\", \"_id\": \"%02X%02X%02X%02X%02X%02X%lu\" } }\r\n",timeinfo->tm_year + 1900,timeinfo->tm_mon + 1,timeinfo->tm_mday,ap_cur->bssid[0],st_cur->stmac[0], st_cur->stmac[1],st_cur->stmac[2], st_cur->stmac[3],st_cur->stmac[4], st_cur->stmac[5],(unsigned long)time(NULL));
-              	        count++;
-               }
-               else
-              	  fprintf(json,"\r{\"index\" : {\"_index\": \"vnfsdb-%d%d%d\", \"_type\": \"l4\", \"_id\": \"%02X%02X%02X%02X%02X%02X%lu\" } }\r\n",timeinfo->tm_year + 1900,timeinfo->tm_mon + 1,timeinfo->tm_mday,ap_cur->bssid[0],st_cur->stmac[0], st_cur->stmac[1],st_cur->stmac[2], st_cur->stmac[3],st_cur->stmac[4], st_cur->stmac[5],(unsigned long)time(NULL));
+
                struct timeval end;
                gettimeofday(&end,NULL);
-               fprintf( json, "{\"session\" : {\"start_time\" : %lld, \"end_time\" : %lld}, \"StationMAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ", (end.tv_sec*1000)+(end.tv_usec/1000),(end.tv_sec*1000)+(end.tv_usec/1000)
-                                      ,st_cur->stmac[0], st_cur->stmac[1], \
-                                      st_cur->stmac[2], st_cur->stmac[3],  \
-                                      st_cur->stmac[4], st_cur->stmac[5] );
+               if(count == 0x00){
+            	   fprintf( json, "{\"StationMAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ",st_cur->stmac[0], st_cur->stmac[1], \
+            	               st_cur->stmac[2], st_cur->stmac[3],  \
+            	               st_cur->stmac[4], st_cur->stmac[5] );
+            	   count++;
+               }
+               else{
+            	   fprintf( json, "\r{\"StationMAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\", ",st_cur->stmac[0], st_cur->stmac[1], \
+            	               st_cur->stmac[2], st_cur->stmac[3],  \
+            	               st_cur->stmac[4], st_cur->stmac[5] );
+               }
 
                 ltime = localtime( &st_cur->tinit );
 
@@ -2290,6 +2298,7 @@ int dump_write_json(char *json_filename){
                fprintf( json, "\"Signal strength\":%3d, \"#packets\":%8ld, ",
                         st_cur->power,    \
                         st_cur->nb_pkt );
+               fprintf( json, "\"SNR\":%3d, \"Frequency\":%.3f, \"Distance\":%.6f, ", st_cur->SNR, st_cur->frequency, st_cur->distance);
 
                 if( ! memcmp( ap_cur->bssid, BROADCAST, 6 ) )
                         fprintf( json, "\"BSSID\":\"(not associated)\" ," );
@@ -2336,8 +2345,13 @@ int dump_write_json(char *json_filename){
 	            fprintf(json,"\"Manufacturer\":\"%s\", ",st_cur->manuf);
                 srand(time(NULL));
                 double lt,ln;
-                lt = st_cur->gps_loc_best[0];
-                ln = st_cur->gps_loc_best[1];
+                double x, y;
+                x = ((st_cur->distance/1000)/R_EARTH) * (180.0/PI);
+                lt = st_cur->gps_loc_best[0] = rf_tap->latitude + x;
+                ln = st_cur->gps_loc_best[1] = rf_tap->longitude + (x/cos(lt * PI/180.0));
+                st_cur->gps_loc_max[0] = lt;
+                st_cur->gps_loc_max[1] = ln;
+                st_cur->gps_loc_best[2] = rf_tap->altitude;
                 if(lt || ln){
                 fprintf( json, "\"equip_geo_location\":{\"lat\":%.6f, ",
                                                         st_cur->gps_loc_best[0] );
@@ -2352,8 +2366,6 @@ int dump_write_json(char *json_filename){
                 fprintf( json, "\"lon\":%.6f}, ",
                                         st_cur->gps_loc_max[1] );
 
-                //fprintf( json, "\"ALTITUDE\":%.6f, ",
-                                       // st_cur->gps_loc_max[2] );
                  }
                 fprintf( json, "\"ALTITUDE\":%.6f, ",
                                                         st_cur->gps_loc_best[2] );
@@ -2368,11 +2380,6 @@ int dump_write_json(char *json_filename){
         return 1;
 }
 
-pthread_mutex_t lock_handler;
-
-void alarm_handler(int sig){
-	pcap_breakloop(descr);
-}
 void init(){
 	G.ap_1st = NULL;
 	G.manufList = NULL;
@@ -2448,53 +2455,58 @@ void init_json_parser(char *pcap_filename, char *json_filename){
 	pcap_t *fp;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	if(!(fp = pcap_open_offline(pcap_filename, errbuf))){
-		vipl_printf("error: unable to opening fifo for reading\n", error_lvl, __FILE__, __LINE__);
+		char msg[200] = {0x00};
+		sprintf(msg,"error: unable to opening pcap file for reading %s", pcap_filename);
+		vipl_printf(msg, error_lvl, __FILE__, __LINE__);
+		return ;
 	}
-	pcap_loop(fp, 0, packet_handler, NULL);
+	int32_t rt = pcap_loop(fp, 0, packet_handler, NULL);
+	if(rt==-1)
+		vipl_printf("error: parsing pcap files failed", error_lvl, __FILE__, __LINE__);
 	if(dump_write_json(json_filename))
 		vipl_printf("info: json file written successfully\n", error_lvl, __FILE__, __LINE__);
-	if(popen(pcap_filename,"r")==NULL)
-	    vipl_printf("error: unable to delete files in /tmp/ directory", error_lvl, __FILE__, __LINE__);
+	int32_t rtnval = remove(pcap_filename);
+	if(rtnval!=0x00)
+		vipl_printf("error: unable to delete pcap file after writing json", error_lvl, __FILE__, __LINE__);
 }
 
-int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, int8_t db_board){
-  char filter[] = ""; //not required
-  char fifo_name[30] = {0x00};
-  int32_t fd_read;
-  uint8_t buffer[4096*15]={0x00};
-  char filename[200]={0x00}, pcap_filename[200]{0x00}, json_filename[200]{0x00};
+int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, int8_t db_board, int32_t error){
+  clock_t start;
+  int32_t fd, wd, i=0;
+  char pcap_filename[200]{0x00}, json_filename[200]{0x00}, dir_name[200]={0x00};
+  char buffer_event[EVENT_BUF_LEN];
+  int32_t length=0;
+  error_lvl = error;
   init(); //initializes the global variables
   rf_tap = rf_tap_db;
-  sprintf(fifo_name,"/tmp/samples_read_%d", db_board);  //name of fifo to read packets from
-  fd_read = open(fifo_name, O_RDONLY);
-  if(fd_read<=0x00)
-	  vipl_printf("error: unable to open FIFO for reading", error_lvl, __FILE__, __LINE__);
+  const char *homedir;
+  if((homedir = getenv("HOME"))==NULL)
+	  homedir = getpwuid(getuid())->pw_dir;
+  bzero(dir_name, 200);
+  sprintf(dir_name, "%s/wpcap_temp", homedir);
+  fd = inotify_init ();
+  if(fd < 0)
+      vipl_printf("error: in inotify_init", error_lvl, __FILE__, __LINE__);
   while(true){
-     start = time(NULL);
-     int32_t noofBytesTotalRead = 0x00;
-     while((time(NULL)-start) < 15){
-    	 start = time(NULL);
-    	 int32_t numBytesRead = read(fd_read, buffer + noofBytesTotalRead, sizeof(uint8_t)*4096);
-    	 if(numBytesRead<0){
-    		 vipl_printf("error: unable to read from FIFO", error_lvl, __FILE__,__LINE__);
-    		 continue;
-    	 }
-    	 noofBytesTotalRead+=numBytesRead;
-     }
-     sprintf(filename, "/tmp/wifidump%lu", (unsigned long)start);
-     sprintf(pcap_filename, "%s.pcap", filename);
-     FILE *pcap_file = fopen(pcap_filename, "wb");
-     fwrite(buffer, sizeof(uint8_t), noofBytesTotalRead, pcap_file);
-     fclose(pcap_file);
-     sprintf(json_filename, "%s.json", filename);
-     boost::thread t1(init_json_parser, pcap_filename, json_filename);
-     bzero(filename, 200);
-     bzero(pcap_filename, 200);
-     sprintf(filename, "/home/vehere/wpcap/wifidump%lu", (unsigned long)start);
-     sprintf(pcap_filename, "%s.pcap", filename);
-     pcap_file = fopen(pcap_filename, "wb");
-     fwrite(buffer, sizeof(uint8_t), noofBytesTotalRead, pcap_file);
-     fclose(pcap_file);
+      wd = inotify_add_watch(fd, dir_name, IN_MOVED_TO);
+      length = read(fd, buffer_event, EVENT_BUF_LEN);
+      if(length<0)
+    	  vipl_printf("error: in read", error_lvl, __FILE__, __LINE__);
+      i=0;
+      while(i<length){
+    	  struct inotify_event *event = (struct inotify_event *) &buffer_event[i];
+    	  if(event->len){
+    		  if(event->mask & IN_MOVED_TO){
+    			  bzero(pcap_filename, 200);
+    			  sprintf(pcap_filename, "%s/%s", dir_name, event->name);
+    		  }
+    	  }
+    	  i += EVENT_SIZE + event->len;
+      }
+      bzero(json_filename, 200);
+      start = clock();
+      sprintf(json_filename, "%s/json/wifidump%lu.json", homedir, (unsigned long)start);
+      init_json_parser(pcap_filename, json_filename);
   }
   return 0;
 }
