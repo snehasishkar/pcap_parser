@@ -12,10 +12,10 @@
 #include <time.h>
 #include "../include/vipl_printf.h"
 
-void vipl_printf(char message[],int error_lvl,char file[],int line)
+void vipl_printf(char message[],int32_t error_lvl,char file[],int32_t line)
 {
    FILE *fp;
-   int ret_stat;
+   int32_t ret_stat;
    time_t t = time(NULL);
    struct tm tm = *localtime(&t);
    char timestamp[100]={0x00};

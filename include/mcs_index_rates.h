@@ -35,6 +35,7 @@
 #ifndef MCS_INDEX_RATES_H
 #define MCS_INDEX_RATES_H
 
+#include <stdint.h>
 // http://mcsindex.com/
 
 // 20/40/80/160MHz -> (0, 1, 2, 3)
@@ -43,12 +44,12 @@
 // MCS index
 extern const float MCS_index_rates[4][2][8][10];
 
-float get_80211n_rate(const int width,
-					  const int is_short_GI,
-					  const int mcs_index);
-float get_80211ac_rate(const int width,
-					   const int is_short_GI,
-					   const int mcs_idx,
-					   const int amount_ss);
+float get_80211n_rate(const int32_t width,
+					  const int32_t is_short_GI,
+					  const int32_t mcs_index);
+float get_80211ac_rate(const int32_t width,
+					   const int32_t is_short_GI,
+					   const int32_t mcs_idx,
+					   const int32_t amount_ss);
 
 #endif // MCS_INDEX_RATES_H

@@ -112,23 +112,23 @@ extern const unsigned char crc_chop_tbl[256][4];
 
 #define MIN_RAM_SIZE_LOAD_OUI_RAM 32768
 
-int read_pkts = 0;
+int32_t read_pkts = 0;
 
-int abg_chans[]
+int32_t abg_chans[]
 	= {1,   7,   13,  2,   8,   3,   14,  9,   4,   10,  5,   11,  6,
 	   12,  36,  38,  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,
 	   60,  62,  64,  100, 102, 104, 106, 108, 110, 112, 114, 116, 118,
 	   120, 122, 124, 126, 128, 132, 134, 136, 138, 140, 142, 144, 149,
 	   151, 153, 155, 157, 159, 161, 165, 169, 173, 0};
 
-int bg_chans[] = {1, 7, 13, 2, 8, 3, 14, 9, 4, 10, 5, 11, 6, 12, 0};
+int32_t bg_chans[] = {1, 7, 13, 2, 8, 3, 14, 9, 4, 10, 5, 11, 6, 12, 0};
 
-int a_chans[] = {36,  38,  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,
+int32_t a_chans[] = {36,  38,  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,
 				 60,  62,  64,  100, 102, 104, 106, 108, 110, 112, 114, 116,
 				 118, 120, 122, 124, 126, 128, 132, 134, 136, 138, 140, 142,
 				 144, 149, 151, 153, 155, 157, 159, 161, 165, 169, 173, 0};
 
-int * frequencies;
+int32_t * frequencies;
 
 /* linked list of received packets for the last few seconds */
 struct pkt_buf
@@ -212,21 +212,21 @@ struct AP_info
 
 	time_t tinit, tlast; /* first and last time seen */
 
-	int channel; /* AP radio channel         */
+	int32_t channel; /* AP radio channel         */
 	enum channel_width_enum channel_width; /* Channel width            */
 	char standard[3]; /* 802.11 standard: n or ac */
 	struct n_channel_info n_channel; /* 802.11n channel info     */
 	struct ac_channel_info ac_channel; /* 802.11ac channel info    */
-	int max_speed; /* AP maximum speed in Mb/s */
-	int avg_power; /* averaged signal power    */
+	int32_t max_speed; /* AP maximum speed in Mb/s */
+	int32_t avg_power; /* averaged signal power    */
 	int best_power; /* best signal power    */
-	int power_index; /* index in power ring buf. */
-	int power_lvl[NB_PWR]; /* signal power ring buffer */
-	int preamble; /* 0 = long, 1 = short      */
-	int security; /* ENC_*, AUTH_*, STD_*     */
-	int beacon_logged; /* We need 1 beacon per AP  */
-	int dict_started; /* 1 if dict attack started */
-	int ssid_length; /* length of ssid           */
+	int32_t power_index; /* index in power ring buf. */
+	int32_t power_lvl[NB_PWR]; /* signal power ring buffer */
+	int32_t preamble; /* 0 = long, 1 = short      */
+	int32_t security; /* ENC_*, AUTH_*, STD_*     */
+	int32_t beacon_logged; /* We need 1 beacon per AP  */
+	int32_t dict_started; /* 1 if dict attack started */
+	int32_t ssid_length; /* length of ssid           */
 	float gps_loc_min[5]; /* min gps coordinates      */
 	float gps_loc_max[5]; /* max gps coordinates      */
 	float gps_loc_best[5]; /* best gps coordinates     */
@@ -235,7 +235,7 @@ struct AP_info
 	unsigned long nb_pkt; /* total number of packets  */
 	unsigned long nb_data; /* number of  data packets  */
 	unsigned long nb_data_old; /* number of data packets/sec*/
-	int nb_dataps; /* number of data packets/sec*/
+	int32_t nb_dataps; /* number of data packets/sec*/
 	struct timeval tv; /* time for data per second */
 
 	unsigned char bssid[6]; /* the access point's MAC   */
@@ -251,31 +251,31 @@ struct AP_info
 	unsigned char ** uiv_root; /* unique iv root structure */
 	/* if wep-encrypted network */
 
-	int rx_quality; /* percent of captured beacons */
-	int fcapt; /* amount of captured frames   */
-	int fmiss; /* amount of missed frames     */
+	int32_t rx_quality; /* percent of captured beacons */
+	int32_t fcapt; /* amount of captured frames   */
+	int32_t fmiss; /* amount of missed frames     */
 	unsigned int last_seq; /* last sequence number        */
 	struct timeval ftimef; /* time of first frame         */
 	struct timeval ftimel; /* time of last frame          */
 	struct timeval ftimer; /* time of restart             */
 
 	char * key; /* if wep-key found by dict */
-	int essid_stored; /* essid stored in ivs file? */
+	int32_t essid_stored; /* essid stored in ivs file? */
 
 	char decloak_detect; /* run decloak detection? */
 	struct pkt_buf * packets; /* list of captured packets (last few seconds) */
 	char is_decloak; /* detected decloak */
 
 	// This feature eats 48Mb per AP
-	int EAP_detected;
+	int32_t EAP_detected;
 	unsigned char * data_root; /* first 2 bytes of data if */
 	/* WEP network; used for    */
 	/* detecting WEP cloak	  */
 	/* + one byte to indicate   */
 	/* (in)existence of the IV  */
 
-	int marked;
-	int marked_color;
+	int32_t marked;
+	int32_t marked_color;
 	struct WPS_info wps;
 	int32_t SNR;   /*SNR */
 	double frequency; /*Frequency of the access-point   */
@@ -291,21 +291,21 @@ struct ST_info
 	unsigned long nb_pkt; /* total number of packets   */
 	unsigned char stmac[6]; /* the client's MAC address  */
 	char * manuf; /* the client's manufacturer */
-	int probe_index; /* probed ESSIDs ring index  */
+	int32_t probe_index; /* probed ESSIDs ring index  */
 	char probes[NB_PRB][MAX_IE_ELEMENT_SIZE];
 	/* probed ESSIDs ring buffer */
-	int ssid_length[NB_PRB]; /* ssid lengths ring buffer  */
-	int power; /* last signal power         */
-	int best_power; /* best signal power    */
-	int rate_to; /* last bitrate to station   */
-	int rate_from; /* last bitrate from station */
+	int32_t ssid_length[NB_PRB]; /* ssid lengths ring buffer  */
+	int32_t power; /* last signal power         */
+	int32_t best_power; /* best signal power    */
+	int32_t rate_to; /* last bitrate to station   */
+	int32_t rate_from; /* last bitrate from station */
 	struct timeval ftimer; /* time of restart           */
-	int missed; /* number of missed packets  */
+	int32_t missed; /* number of missed packets  */
 	unsigned int lastseq; /* last seen sequence number */
 	struct WPA_hdsk wpa; /* WPA handshake data        */
-	int qos_to_ds; /* does it use 802.11e to ds */
-	int qos_fr_ds; /* does it receive 802.11e   */
-	int channel; /* Channel station is seen   */
+	int32_t qos_to_ds; /* does it use 802.11e to ds */
+	int32_t qos_fr_ds; /* does it receive 802.11e   */
+	int32_t channel; /* Channel station is seen   */
 	float gps_loc_min[5]; /* min gps coordinates      */
 	float gps_loc_max[5]; /* max gps coordinates      */
 	float gps_loc_best[5]; /* best gps coordinates     */
@@ -323,15 +323,15 @@ struct NA_info
 	struct NA_info * next; /* the next client in list   */
 	time_t tinit, tlast; /* first and last time seen  */
 	unsigned char namac[6]; /* the stations MAC address  */
-	int power; /* last signal power         */
-	int channel; /* captured on channel       */
-	int ack; /* number of ACK frames      */
-	int ack_old; /* old number of ACK frames  */
-	int ackps; /* number of ACK frames/s    */
-	int cts; /* number of CTS frames      */
-	int rts_r; /* number of RTS frames (rx) */
-	int rts_t; /* number of RTS frames (tx) */
-	int other; /* number of other frames    */
+	int32_t power; /* last signal power         */
+	int32_t channel; /* captured on channel       */
+	int32_t ack; /* number of ACK frames      */
+	int32_t ack_old; /* old number of ACK frames  */
+	int32_t ackps; /* number of ACK frames/s    */
+	int32_t cts; /* number of CTS frames      */
+	int32_t rts_r; /* number of RTS frames (rx) */
+	int32_t rts_t; /* number of RTS frames (tx) */
+	int32_t other; /* number of other frames    */
 	struct timeval tv; /* time for ack per second   */
 };
 /* bunch of global stuff */
@@ -347,7 +347,7 @@ struct globals
 	unsigned char f_bssid[6];
 	unsigned char f_netmask[6];
 	char ** f_essid;
-	int f_essid_count;
+	int32_t f_essid_count;
 #ifdef HAVE_PCRE
 	pcre * f_essid_regex;
 #endif
@@ -355,7 +355,7 @@ struct globals
 	char * keyout;
 	char * f_cap_name;
 
-	int f_index; /* outfiles index       */
+	int32_t f_index; /* outfiles index       */
 	FILE * f_txt; /* output csv file      */
 	FILE *f_json; /* output json file     */
 	FILE * f_kis; /* output kismet csv file      */
@@ -366,45 +366,45 @@ struct globals
 	FILE * f_xor; /* output prga file     */
 
 	char * batt; /* Battery string       */
-	int channel[MAX_CARDS]; /* current channel #    */
-	int frequency[MAX_CARDS]; /* current frequency #    */
-	int ch_pipe[2]; /* current channel pipe */
-	int cd_pipe[2]; /* current card pipe    */
-	int gc_pipe[2]; /* gps coordinates pipe */
+	int32_t channel[MAX_CARDS]; /* current channel #    */
+	int32_t frequency[MAX_CARDS]; /* current frequency #    */
+	int32_t ch_pipe[2]; /* current channel pipe */
+	int32_t cd_pipe[2]; /* current card pipe    */
+	int32_t gc_pipe[2]; /* gps coordinates pipe */
 	float gps_loc[5]; /* gps coordinates      */
-	int save_gps; /* keep gps file flag   */
-	int usegpsd; /* do we use GPSd?      */
-	int * channels;
+	int32_t save_gps; /* keep gps file flag   */
+	int32_t usegpsd; /* do we use GPSd?      */
+	int32_t * channels;
 	//     int *frequencies;
-	int singlechan; /* channel hopping set 1*/
-	int singlefreq; /* frequency hopping: 1 */
-	int chswitch; /* switching method     */
-	int f_encrypt; /* encryption filter    */
-	int update_s; /* update delay in sec  */
+	int32_t singlechan; /* channel hopping set 1*/
+	int32_t singlefreq; /* frequency hopping: 1 */
+	int32_t chswitch; /* switching method     */
+	int32_t f_encrypt; /* encryption filter    */
+	int32_t update_s; /* update delay in sec  */
 
-	int is_wlanng[MAX_CARDS]; /* set if wlan-ng       */
-	int is_orinoco[MAX_CARDS]; /* set if orinoco       */
-	int is_madwifing[MAX_CARDS]; /* set if madwifi-ng    */
-	int is_zd1211rw[MAX_CARDS]; /* set if zd1211rw    */
+	int32_t is_wlanng[MAX_CARDS]; /* set if wlan-ng       */
+	int32_t is_orinoco[MAX_CARDS]; /* set if orinoco       */
+	int32_t is_madwifing[MAX_CARDS]; /* set if madwifi-ng    */
+	int32_t is_zd1211rw[MAX_CARDS]; /* set if zd1211rw    */
 	volatile int do_exit; /* interrupt flag       */
 	struct winsize ws; /* console window size  */
 
 	char * elapsed_time; /* capture time			*/
 
-	int one_beacon; /* Record only 1 beacon?*/
+	int32_t one_beacon; /* Record only 1 beacon?*/
 
 	unsigned char sharedkey[3][4096]; /* array for 3 packets with a size of \
 							   up to 4096Byte */
 	time_t sk_start;
 	char * prefix;
-	int sk_len;
-	int sk_len2;
+	int32_t sk_len;
+	int32_t sk_len2;
 
-	int * own_channels; /* custom channel list  */
-	int * own_frequencies; /* custom frequency list  */
+	int32_t * own_channels; /* custom channel list  */
+	int32_t * own_frequencies; /* custom frequency list  */
 
-	int record_data; /* do we record data?   */
-	int asso_client; /* only show associated clients */
+	int32_t record_data; /* do we record data?   */
+	int32_t asso_client; /* only show associated clients */
 
 	char * iwpriv;
 	char * iwconfig;
@@ -416,10 +416,10 @@ struct globals
 	char decloak;
 
 	char is_berlin; /* is the switch --berlin set? */
-	int numaps; /* number of APs on the current list */
-	int maxnumaps; /* maximum nubers of APs on the list */
-	int maxaps; /* number of all APs found */
-	int berlin; /* number of seconds it takes in berlin to fill the whole screen
+	int32_t numaps; /* number of APs on the current list */
+	int32_t maxnumaps; /* maximum nubers of APs on the list */
+	int32_t maxaps; /* number of all APs found */
+	int32_t berlin; /* number of seconds it takes in berlin to fill the whole screen
 				   with APs*/
 	/*
 	 * The name for this option may look quite strange, here is the story behind
@@ -442,64 +442,64 @@ struct globals
 	 * eating an ice.
 	 */
 
-	int show_ap;
-	int show_sta;
-	int show_ack;
-	int hide_known;
+	int32_t show_ap;
+	int32_t show_sta;
+	int32_t show_ack;
+	int32_t hide_known;
 
-	int hopfreq;
+	int32_t hopfreq;
 
 	char * s_file; /* source file to read packets */
 	char * s_iface; /* source interface to read from */
 	FILE * f_cap_in;
 	struct pcap_file_header pfh_in;
-	int detect_anomaly; /* Detect WIPS protecting WEP in action */
+	int32_t detect_anomaly; /* Detect WIPS protecting WEP in action */
 
 	char * freqstring;
-	int freqoption;
-	int chanoption;
-	int active_scan_sim; /* simulates an active scan, sending probe requests */
+	int32_t freqoption;
+	int32_t chanoption;
+	int32_t active_scan_sim; /* simulates an active scan, sending probe requests */
 
 	/* Airodump-ng start time: for kismet netxml file */
 	char * airodump_start_time;
 
-	int output_format_pcap;
-	int output_format_csv;
-	int output_format_json;
-	int output_format_kismet_csv;
-	int output_format_kismet_netxml;
+	int32_t output_format_pcap;
+	int32_t output_format_csv;
+	int32_t output_format_json;
+	int32_t output_format_kismet_csv;
+	int32_t output_format_kismet_netxml;
 	pthread_t input_tid;
-	int sort_by;
-	int sort_inv;
-	int start_print_ap;
-	int start_print_sta;
-	int selected_ap;
-	int selected_sta;
-	int selection_ap;
-	int selection_sta;
-	int mark_cur_ap;
-	int num_cards;
-	int skip_columns;
-	int do_pause;
-	int do_sort_always;
+	int32_t sort_by;
+	int32_t sort_inv;
+	int32_t start_print_ap;
+	int32_t start_print_sta;
+	int32_t selected_ap;
+	int32_t selected_sta;
+	int32_t selection_ap;
+	int32_t selection_sta;
+	int32_t mark_cur_ap;
+	int32_t num_cards;
+	int32_t skip_columns;
+	int32_t do_pause;
+	int32_t do_sort_always;
 
 	pthread_mutex_t mx_print; /* lock write access to ap LL   */
 	pthread_mutex_t mx_sort; /* lock write access to ap LL   */
 
 	unsigned char selected_bssid[6]; /* bssid that is selected */
 
-	int ignore_negative_one;
+	int32_t ignore_negative_one;
 	u_int maxsize_essid_seen;
-	int show_manufacturer;
-	int show_uptime;
-	int file_write_interval;
+	int32_t show_manufacturer;
+	int32_t show_uptime;
+	int32_t file_write_interval;
 	u_int maxsize_wps_seen;
         //struct tm gps_time; /* the timestamp from the gps data */
-	int show_wps;
+	int32_t show_wps;
 #ifdef CONFIG_LIBNL
-	int htval;
+	int32_t htval;
 #endif
-	int background_mode;
+	int32_t background_mode;
 } G;
 
 #endif

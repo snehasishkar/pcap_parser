@@ -12,6 +12,6 @@
 
 #include <stdint.h>
 extern int32_t error_lvl;
-void vipl_printf(char message[],int error_lvl,char file[],int line);
+void vipl_printf(char message[],int32_t error_lvl,char file[],int32_t line);
 
 #endif /* INCLUDE_VIPL_PRINTF_H_ */

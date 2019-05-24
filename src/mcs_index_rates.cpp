@@ -104,9 +104,9 @@ const float MCS_index_rates[4][2][8][10] = {
 	  {455, 910, 1365, 1820, 2730, 3640, 4095, 4550, 5460, 6066.7},
 	  {520, 1040, 1560, 2080, 3120, 4160, 4680, 5200, 6240, 6933.3}}}};
 
-float get_80211n_rate(const int width,
-					  const int is_short_GI,
-					  const int mcs_index)
+float get_80211n_rate(const int32_t width,
+					  const int32_t is_short_GI,
+					  const int32_t mcs_index)
 {
 	// Check MCS Index
 	if (mcs_index < 0 || mcs_index > 31)
@@ -136,10 +136,10 @@ float get_80211n_rate(const int width,
 	return MCS_index_rates[width_idx][sgi][amount_ss][mcs_idx];
 }
 
-float get_80211ac_rate(const int width,
-					   const int is_short_GI,
-					   const int mcs_idx,
-					   const int amount_ss)
+float get_80211ac_rate(const int32_t width,
+					   const int32_t is_short_GI,
+					   const int32_t mcs_idx,
+					   const int32_t amount_ss)
 {
 	// Check MCS Index
 	if (mcs_idx < 0 || mcs_idx > 9)

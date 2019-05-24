@@ -34,9 +34,9 @@
 
 #include "../include/verifyssid.h"
 
-int verifyssid(const unsigned char * s)
+int32_t verifyssid(const unsigned char * s)
 {
-	int i;
+	int32_t i;
 	unsigned char c;
 
 	if (!s || strlen((const char *) s) > 32)

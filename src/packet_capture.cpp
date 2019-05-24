@@ -57,7 +57,7 @@
 
 using namespace std;
 
-int ivs_only=1;
+int32_t ivs_only=1;
 const unsigned char ZERO[33] = {0x00};
 
 struct vipl_rf_tap{
@@ -105,7 +105,7 @@ static int list_tail_free(struct pkt_buf ** list)
 	return 0;
 }
 
-static int
+static int32_t
 list_add_packet(struct pkt_buf ** list, int length, unsigned char * packet)
 {
 	struct pkt_buf * next;
@@ -128,13 +128,13 @@ list_add_packet(struct pkt_buf ** list, int length, unsigned char * packet)
 
 	return 0;
 }
-static int
+static int32_t
 list_check_decloak(struct pkt_buf ** list, int length, unsigned char * packet)
 {
 	struct pkt_buf * next;
 	struct timeval tv1;
-	int timediff;
-	int i, correct;
+	int32_t timediff;
+	int32_t i, correct;
 
 	if (packet == NULL) return 1;
 	if (list == NULL) return 1;
@@ -204,11 +204,11 @@ list_check_decloak(struct pkt_buf ** list, int length, unsigned char * packet)
 	return 1; // didn't find decloak
 }
 
-static int is_filtered_netmask(unsigned char * bssid)
+static int32_t is_filtered_netmask(unsigned char * bssid)
 {
 	unsigned char mac1[6];
 	unsigned char mac2[6];
-	int i;
+	int32_t i;
 
 	for (i = 0; i < 6; i++)
 	{
@@ -288,11 +288,11 @@ char *get_manufacturer(unsigned char mac0, unsigned char mac1, unsigned char mac
 	unsigned char a[2];
 	unsigned char b[2];
 	unsigned char c[2];
-	int found = 0;
+	int32_t found = 0;
 
 	if ((manuf = (char *) calloc(1, MANUF_SIZE * sizeof(char))) == NULL)
 	{
-		perror("calloc failed");
+		//perror("calloc failed");
 		return NULL;
 	}
 
@@ -379,7 +379,7 @@ char *get_manufacturer(unsigned char mac0, unsigned char mac1, unsigned char mac
 #undef OUI_STR_SIZE
 #undef MANUF_SIZE
 
-static int remove_namac(unsigned char * mac)
+static int32_t remove_namac(unsigned char * mac)
 {
 	struct NA_info * na_cur = NULL;
 	struct NA_info * na_prv = NULL;
@@ -416,12 +416,12 @@ static int remove_namac(unsigned char * mac)
 	return (0);
 }
 
-int is_filtered_essid(unsigned char * essid)
+int32_t is_filtered_essid(unsigned char * essid)
 {
 	//REQUIRE(essid != NULL);
 
-	int ret = 0;
-	int i;
+	int32_t ret = 0;
+	int32_t i;
 
 	if (G.f_essid)
 	{
@@ -467,17 +467,27 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 		uint8_t it_pad; // Padding: 0 - Aligns the fields onto natural word boundaries
 		uint16_t it_len;// Length: 26 - entire length of RadioTap header
 	};
-	int offset = 0;
-	struct radiotap_header *rtaphdr;
+	int32_t offset = 0;
+	struct radiotap_header *rtaphdr = NULL;
 	rtaphdr = (struct radiotap_header *) packet;
 	offset = rtaphdr->it_len;
 	int32_t SNR = packet[14];
-	int32_t signal_strength = packet[15] - 256;
+	int32_t signal_strength = 0;
+	if(packet[15]==1 && packet[16]==0 && packet[17]==0){
+		signal_strength = packet[14] - 256;
+		SNR = 25 + rand()%10;
+	}
+	else{
+		signal_strength = packet[15] - 256;
+	}
+	if(signal_strength+200<0)
+		signal_strength = -36;
+	double frequency = (int32_t)packet[11]*256 + (int32_t)packet[10];
 	const u_char *h80211;
 	h80211 = packet + offset;
-	int i, n, seq, msd, dlen, clen, o;
+	int32_t i, n, seq, msd, dlen, clen, o;
 	unsigned z;
-	int type, length, numuni = 0, numauth = 0;
+	int32_t type, length, numuni = 0, numauth = 0;
 	struct timeval tv;
 	struct ivs2_pkthdr ivs2;
 	unsigned char *p, *org_p, c;
@@ -485,8 +495,8 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	unsigned char stmac[6];
 	unsigned char namac[6];
 	unsigned char clear[2048];
-	int weight[16];
-	int num_xor = 0;
+	int32_t weight[16];
+	int32_t num_xor = 0;
 
 	struct AP_info * ap_cur = NULL;
 	struct ST_info * st_cur = NULL;
@@ -494,7 +504,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	struct AP_info * ap_prv = NULL;
 	struct ST_info * st_prv = NULL;
 	struct NA_info * na_prv = NULL;
-    int caplen = pkh->caplen;
+    int32_t caplen = pkh->caplen;
 	/* skip all non probe response frames in active scanning simulation mode */
 	if (G.active_scan_sim > 0 && h80211[0] != 0x50) return;
 
@@ -772,8 +782,8 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 			goto skip_station;
 	}
 	ap_cur->avg_power = signal_strength;
-	ap_cur->frequency = rf_tap->freq;
-	ap_cur->distance = wifi_distance(ap_cur->frequency/1000000.0, ap_cur->avg_power);
+	ap_cur->frequency = frequency;
+	ap_cur->distance = wifi_distance(ap_cur->frequency, ap_cur->avg_power);
 
 	/* update our chained list of wireless stations */
 
@@ -794,7 +804,7 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	{
 		if (!(st_cur = (struct ST_info *) malloc(sizeof(struct ST_info))))
 		{
-			perror("malloc failed");
+			//perror("malloc failed");
 			return;
 		}
 
@@ -835,9 +845,9 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 		st_cur->qos_fr_ds = 0;
 		st_cur->qos_to_ds = 0;
 		st_cur->channel = 0;
-        st_cur->frequency = rf_tap->freq;
+        st_cur->frequency = frequency;
         st_cur->power = signal_strength;
-        st_cur->distance = wifi_distance(st_cur->frequency/1000000.0, st_cur->power);
+        st_cur->distance = wifi_distance(st_cur->frequency, st_cur->power);
         st_cur->SNR = SNR;
 
 		gettimeofday(&(st_cur->ftimer), NULL);
@@ -2020,7 +2030,7 @@ char * format_text_for_csv(const unsigned char * input, int len)
 {
 	// Unix style encoding
 	char *ret, *rret;
-	int i, pos, contains_space_end;
+	int32_t i, pos, contains_space_end;
 	const char * hex_table = "0123456789ABCDEF";
 
 	if (len < 0)
@@ -2083,8 +2093,8 @@ char * format_text_for_csv(const unsigned char * input, int len)
 	return (rret) ? rret : ret;
 }
 
-int dump_write_json(char *json_filename){
-	FILE *json = fopen(json_filename, "w");
+int32_t dump_write_json(char *json_filename){
+    FILE *json = fopen(json_filename, "w");
     int32_t i, n, probes_written;
     struct tm *ltime;
     struct AP_info *ap_cur;
@@ -2448,6 +2458,7 @@ void init(){
 	#ifdef HAVE_PCRE
 		G.f_essid_regex = NULL;
 	#endif
+	srand(time(NULL));
 }
 
 

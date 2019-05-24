@@ -55,7 +55,7 @@
 
 unsigned char ** uniqueiv_init(void)
 {
-	int i;
+	int32_t i;
 
 	/* allocate root bucket (level 0) as vector of pointers */
 
@@ -73,7 +73,7 @@ unsigned char ** uniqueiv_init(void)
 
 /* update records with new IV */
 
-int uniqueiv_mark(unsigned char ** uiv_root, unsigned char IV[3])
+int32_t uniqueiv_mark(unsigned char ** uiv_root, unsigned char IV[3])
 {
 	unsigned char ** uiv_lvl1;
 	unsigned char * uiv_lvl2;
@@ -136,7 +136,7 @@ int uniqueiv_mark(unsigned char ** uiv_root, unsigned char IV[3])
 
 /* check if already seen IV */
 
-int uniqueiv_check(unsigned char ** uiv_root, unsigned char IV[3])
+int32_t uniqueiv_check(unsigned char ** uiv_root, unsigned char IV[3])
 {
 	unsigned char ** uiv_lvl1;
 	unsigned char * uiv_lvl2;
@@ -171,7 +171,7 @@ int uniqueiv_check(unsigned char ** uiv_root, unsigned char IV[3])
 
 void uniqueiv_wipe(unsigned char ** uiv_root)
 {
-	int i, j;
+	int32_t i, j;
 	unsigned char ** uiv_lvl1;
 	unsigned char * uiv_lvl2;
 
@@ -224,11 +224,11 @@ unsigned char * data_init(void)
  * AA AA
  */
 
-int data_check(unsigned char * data_root,
+int32_t data_check(unsigned char * data_root,
 			   unsigned char IV[3],
 			   unsigned char data[2])
 {
-	int IV_position, cloaking;
+	int32_t IV_position, cloaking;
 
 	// Init vars
 	cloaking = NO_CLOAKING;
