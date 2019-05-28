@@ -501,5 +501,29 @@ struct globals
 #endif
 	int32_t background_mode;
 } G;
-
+struct command_from_DSP{
+	uint8_t mode;
+	uint8_t db_board;
+	uint32_t mboard;
+	bool change_freq;
+	bool change_gain;
+	bool init_board;
+	bool ntwrkscan;
+	bool getgps;
+	double freq;
+	double gain;
+	double samp_rate;
+	double atten;
+	double bandwidth;
+	double lo_offset;
+	double tx_power;
+	char mboard_addr[34];
+	char channel_list[14];
+	char band[3];
+	char technology[6];
+	int32_t num_channels;
+	char interface[50];
+	char handshake[200];
+	char offlinePcap[200];
+};
 #endif
