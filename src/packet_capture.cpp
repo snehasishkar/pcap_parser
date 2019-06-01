@@ -63,6 +63,8 @@ const unsigned char ZERO[33] = {0x00};
 pcap_t *descr = NULL;
 pcap_dumper_t *offline_dump = NULL;
 char handshake_path[200] = {'\0'};
+char oui_path[200] = {'\0'};
+bool offline_pcap = false;
 
 struct vipl_rf_tap{
 	uint8_t channel;
@@ -320,7 +322,7 @@ char *get_manufacturer(unsigned char mac0, unsigned char mac1, unsigned char mac
 	{
 		// If the file exist, then query it each time we need to get a
 		// manufacturer.
-		fp = fopen("../config/oui.txt", "r");
+		fp = fopen(oui_path, "r");
         if(fp==NULL){
         	vipl_printf("error: manufacturers list file not present", error_lvl, __FILE__, __LINE__);
         }
@@ -475,7 +477,8 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	struct radiotap_header *rtaphdr = NULL;
 	rtaphdr = (struct radiotap_header *) packet;
 	offset = rtaphdr->it_len;
-	pcap_dump((unsigned char*)offline_dump, pkh, packet);
+	if(offline_pcap==true)
+                pcap_dump((unsigned char*)offline_dump, pkh, packet);
 	int32_t SNR = packet[14];
 	int32_t signal_strength = 0;
 	if(packet[15]==1 && packet[16]==0 && packet[17]==0){
@@ -1813,28 +1816,32 @@ skip_probe:
                     	         ap_cur->bssid[4],
                     	         ap_cur->bssid[5]);
                     sprintf(path, "%s/ap_%s.ivs", handshake_path, bssid);
-                    FILE *fp = fopen(path, "rb");
-                    if(!fp)
-                    	fp = fopen(path, "wb");
-                    if(fp==NULL)
-                    	vipl_printf("error: unable to write to handshake", error_lvl, __FILE__, __LINE__);
-                    if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
-                 	    //vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
-                 	    //return (1);
-                 	}
-                    if (ivs2.flags & IVS2_BSSID)
-                   	{
-                   	    if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
+		    if(strlen(handshake_path)==0)
+			    vipl_printf("error: path to handshake is empty", error_lvl, __FILE__, __LINE__);
+		    else{
+                            FILE *fp = fopen(path, "rb");
+                            if(!fp)
+                    	        fp = fopen(path, "wb");
+                            if(fp==NULL)
+                    	        vipl_printf("error: unable to write to handshake", error_lvl, __FILE__, __LINE__);
+                            if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
+                 	        vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
+                 	        //return (1);
+                 	    }
+                            if (ivs2.flags & IVS2_BSSID)
                    	    {
-                   	    	//vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
+                   	        if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
+                   	        {
+                   	    	   vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
+                   	        }
+                   	        ivs2.len -= 6;
                    	    }
-                   	    ivs2.len -= 6;
-                   	}
-                    if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
-                 	{
-                       //vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
-                 	}
-                 	fclose(fp);
+                            if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
+                 	    {
+                                vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
+                 	    }
+                 	    fclose(fp);
+		    }
 				}
 			}
 		}
@@ -2160,14 +2167,10 @@ int32_t dump_write_json(char *json_filename){
                         1900 + ltime->tm_year, 1 + ltime->tm_mon,	\
                         ltime->tm_mday, ltime->tm_hour,	\
                         ltime->tm_min,  ltime->tm_sec );
-	            if(ap_cur->channel==-1)
-	            	fprintf(json, "\"channel\":\"unknown\", ");
-	            if(ap_cur->max_speed==-1)
-	            	fprintf(json, "\"max_speed\":\"unknown\", ");
-	            if(ap_cur->channel!=-1 && ap_cur->max_speed!=-1)
-	            	fprintf( json, "\"channel\":%2d, \"max_speed\":%3d,",	\
-                        ap_cur->channel,	\
-                        ap_cur->max_speed );
+	            if(ap_cur->channel!=-1)
+	            	fprintf( json, "\"channel\":%2d, ", ap_cur->channel);
+	            if(ap_cur->max_speed!=-1)
+	            	fprintf( json, "\"max_speed\":%3d, ", ap_cur->max_speed );
 
                 fprintf( json, "\"Privacy\":");
 
@@ -2183,9 +2186,9 @@ int32_t dump_write_json(char *json_filename){
                 }
                 fprintf( json, ",");
                 if( (ap_cur->security & (ENC_WEP|ENC_TKIP|ENC_WRAP|ENC_CCMP|ENC_WEP104|ENC_WEP40)) == 0 ){
-                	if( ap_cur->security & STD_OPN )
-                		fprintf( json, "\"Cipher\":\"\" ");
-                	else
+                	//if( ap_cur->security & STD_OPN )
+                	//	fprintf( json, "\"Cipher\":\" \" ");
+                	//else
                 		fprintf( json, "\"Cipher\":\"unknown\" ");
                 }
                 else{
@@ -2200,9 +2203,9 @@ int32_t dump_write_json(char *json_filename){
                 }
                 fprintf( json, ",");
                 if( (ap_cur->security & (AUTH_OPN|AUTH_PSK|AUTH_MGT)) == 0 ){
-                	if( ap_cur->security & STD_OPN )
-                		fprintf( json, " \"Authentication\":\"\" ");
-                	else
+                	//if( ap_cur->security & STD_OPN )
+                	//	fprintf( json, " \"Authentication\":\" \" ");
+                	//else
                 		fprintf( json, " \"Authentication\":\"unknown\" ");
                 }
                 else{
@@ -2262,7 +2265,7 @@ int32_t dump_write_json(char *json_filename){
                 ap_cur->gps_loc_best[2] = rf_tap->altitude;
                 if(ap_cur->frequency==0)
                 	lt=ln=0;
-                if(lt || ln){
+                if(lt !=0 && ln!=0){
                 fprintf( json, "\"ap_geo_location\":{\"lat\":%.6f, ",
                                         ap_cur->gps_loc_best[0] );
 
@@ -2333,7 +2336,7 @@ int32_t dump_write_json(char *json_filename){
                         ltime->tm_mday, ltime->tm_hour,     \
                         ltime->tm_min,  ltime->tm_sec );
 
-               fprintf( json, "\"Signal_strength\":%3d, \"#packets\":%8ld, ",
+               fprintf( json, "\"Signal_strength\":%3d, \"#packets\":%ld, ",
                         st_cur->power,    \
                         st_cur->nb_pkt );
                if(st_cur->frequency==0)
@@ -2397,7 +2400,7 @@ int32_t dump_write_json(char *json_filename){
                 st_cur->gps_loc_best[2] = rf_tap->altitude;
                 if(st_cur->frequency==0)
                 	lt=ln=0;
-                if(lt || ln){
+                if(lt!=0 || ln!=0){
                 fprintf( json, "\"equip_geo_location\":{\"lat\":%.6f, ",
                                                         st_cur->gps_loc_best[0] );
 
@@ -2516,7 +2519,7 @@ void init_json_parser(char *pcap_filename, char *json_filename){
 		vipl_printf("error: unable to delete pcap file after writing json", error_lvl, __FILE__, __LINE__);
 }
 
-int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, char *handshake, char *offlinePcap, int32_t error){
+int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, char *handshake, char *offlinePcap, char *oui, int32_t error){
   clock_t start;
   int32_t fd, wd, i=0;
   char pcap_filename[200]{0x00}, json_filename[200]{0x00}, dir_name[200]={0x00};
@@ -2531,13 +2534,16 @@ int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, char *handshake, char *offli
   bzero(dir_name, 200);
   sprintf(dir_name, "%s/wpcap_temp", homedir);
 #if 1
-  descr = pcap_open_dead(DLT_IEEE802_11_RADIO, 65535 /* snaplen */);
-  offline_dump = pcap_dump_open(descr, offlinePcap);
-  if(offline_dump == NULL){
-  		vipl_printf("error: in opening offline pcap file", error_lvl, __FILE__, __LINE__);
+  if(strlen(offlinePcap)>0){
+      offline_pcap = true;
+      descr = pcap_open_dead(DLT_IEEE802_11_RADIO, 65535 /* snaplen */);
+      offline_dump = pcap_dump_open(descr, offlinePcap);
+      if(offline_dump == NULL){
+  	 vipl_printf("error: in opening offline pcap file", error_lvl, __FILE__, __LINE__);
+      }
   }
   strcpy(handshake_path, handshake);
-  //cout<<"handshake: "<<handshake<<"pcap: "<<offlinePcap<<endl;
+  strcpy(oui_path, oui);
 #endif
   fd = inotify_init ();
   if(fd < 0)
@@ -2560,7 +2566,7 @@ int8_t parse_packets(struct vipl_rf_tap *rf_tap_db, char *handshake, char *offli
       }
       bzero(json_filename, 200);
       start = clock();
-      sprintf(json_filename, "/var/log/vehere/json/wifidump%lu.json", (unsigned long)start);
+      sprintf(json_filename, "/var/log/vehere/wifi/wifidump%lu.json", (unsigned long)start);
       init_json_parser(pcap_filename, json_filename);
       //pcap_close(descr);
   }
