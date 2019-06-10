@@ -483,13 +483,11 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
 	int32_t signal_strength = 0;
 	if(packet[15]==1 && packet[16]==0 && packet[17]==0){
 		signal_strength = packet[14] - 256;
-		SNR = 25 + rand()%10;
+		SNR = 0;
 	}
 	else{
 		signal_strength = packet[15] - 256;
 	}
-	if(signal_strength+200<0)
-		signal_strength = -36;
 	double frequency = (int32_t)packet[11]*256 + (int32_t)packet[10];
 	const u_char *h80211;
 	h80211 = packet + offset;
@@ -1825,20 +1823,20 @@ skip_probe:
                             if(fp==NULL)
                     	        vipl_printf("error: unable to write to handshake", error_lvl, __FILE__, __LINE__);
                             if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
-                 	        vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
+                 	        //vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
                  	        //return (1);
                  	    }
                             if (ivs2.flags & IVS2_BSSID)
                    	    {
                    	        if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
                    	        {
-                   	    	   vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
+                   	    	   //vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
                    	        }
                    	        ivs2.len -= 6;
                    	    }
                             if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
                  	    {
-                                vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
+                                //vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
                  	    }
                  	    fclose(fp);
 		    }
@@ -2186,9 +2184,9 @@ int32_t dump_write_json(char *json_filename){
                 }
                 fprintf( json, ",");
                 if( (ap_cur->security & (ENC_WEP|ENC_TKIP|ENC_WRAP|ENC_CCMP|ENC_WEP104|ENC_WEP40)) == 0 ){
-                	//if( ap_cur->security & STD_OPN )
-                	//	fprintf( json, "\"Cipher\":\" \" ");
-                	//else
+                	if( ap_cur->security & STD_OPN )
+                		fprintf( json, "\"Cipher\":\"\" ");
+                	else
                 		fprintf( json, "\"Cipher\":\"unknown\" ");
                 }
                 else{
@@ -2203,9 +2201,9 @@ int32_t dump_write_json(char *json_filename){
                 }
                 fprintf( json, ",");
                 if( (ap_cur->security & (AUTH_OPN|AUTH_PSK|AUTH_MGT)) == 0 ){
-                	//if( ap_cur->security & STD_OPN )
-                	//	fprintf( json, " \"Authentication\":\" \" ");
-                	//else
+                	if( ap_cur->security & STD_OPN )
+                		fprintf( json, " \"Authentication\":\"\" ");
+                	else
                 		fprintf( json, " \"Authentication\":\"unknown\" ");
                 }
                 else{
@@ -2336,7 +2334,7 @@ int32_t dump_write_json(char *json_filename){
                         ltime->tm_mday, ltime->tm_hour,     \
                         ltime->tm_min,  ltime->tm_sec );
 
-               fprintf( json, "\"Signal_strength\":%3d, \"#packets\":%ld, ",
+               fprintf( json, "\"Signal_strength\":%3d, \"#packets\":%8ld, ",
                         st_cur->power,    \
                         st_cur->nb_pkt );
                if(st_cur->frequency==0)
