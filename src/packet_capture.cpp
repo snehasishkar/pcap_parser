@@ -1824,36 +1824,45 @@ skip_probe:
                     	         ap_cur->bssid[3],
                     	         ap_cur->bssid[4],
                     	         ap_cur->bssid[5]);
-                    sprintf(path, "%s/ap_%s.ivs", handshake_path, bssid);
+                    sprintf(path, "%s/ap_%s.pcap", handshake_path, bssid);
 		    if(strlen(handshake_path)==0)
 			    vipl_printf("error: path to handshake is empty", error_lvl, __FILE__, __LINE__);
 		    else{
-                            FILE *fp = fopen(path, "rb");
-                            if(!fp)
-                    	        fp = fopen(path, "wb");
-                            if(fp==NULL)
-                    	        vipl_printf("error: unable to write to handshake", error_lvl, __FILE__, __LINE__);
-                            if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
-                 	        //vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
-                 	        //return (1);
-                 	    }
-                            if (ivs2.flags & IVS2_BSSID)
-                   	    {
-                   	        if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
-                   	        {
-                   	    	   //vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
-                   	        }
-                   	        ivs2.len -= 6;
-                   	    }
-                            if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
-                 	    {
-                                //vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
-                 	    }
-                 	    fclose(fp);
-		    }
-				}
+		    	FILE *fp = fopen(path, "a+");
+                if(fp==NULL)
+                    vipl_printf("error: unable to write handshake", error_lvl, __FILE__, __LINE__);
+                int msg_len = sizeof(pcap_file_hdr);
+                char *contents = reinterpret_cast<char*>(std::malloc(msg_len));
+                pcap_file_hdr *hdr   = reinterpret_cast<pcap_file_hdr*>(contents);
+                hdr->magic_number  = 0xa1b2c3d4;
+                hdr->version_major = 2;
+                hdr->version_minor = 4;
+                hdr->thiszone      = 0;
+                hdr->sigfigs       = 0;
+                hdr->snaplen       = 65535;
+                hdr->network       = WIFI;
+                fwrite(contents, sizeof(unsigned char), msg_len, fp);
+                fwrite(packet, sizeof(unsigned char), offset, fp);
+                if (fwrite(&ivs2, 1, sizeof(struct ivs2_pkthdr), fp) != (size_t) sizeof(struct ivs2_pkthdr)){
+                    vipl_printf("error: fwrite(IV header) failed", error_lvl, __FILE__, __LINE__);
+                }
+                if (ivs2.flags & IVS2_BSSID)
+                {
+                    if (fwrite(ap_cur->bssid, 1, 6, fp) != (size_t) 6)
+                    {
+                	   vipl_printf("error: fwrite(IV bssid) failed", error_lvl, __FILE__, __LINE__);
+                    }
+                    ivs2.len -= 6;
+                }
+                if (fwrite(&(st_cur->wpa), 1, sizeof(struct WPA_hdsk), fp) != (size_t) sizeof(struct WPA_hdsk))
+                {
+                    vipl_printf("error: fwrite(IV wpa_hdsk) failed", error_lvl, __FILE__, __LINE__);
+                }
+                fclose(fp);
+		      }
 			}
-		}
+		  }
+	   }
 	}
 
 write_packet:

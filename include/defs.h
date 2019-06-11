@@ -501,29 +501,17 @@ struct globals
 #endif
 	int32_t background_mode;
 } G;
-struct command_from_DSP{
-	uint8_t mode;
-	uint8_t db_board;
-	uint32_t mboard;
-	bool change_freq;
-	bool change_gain;
-	bool init_board;
-	bool ntwrkscan;
-	bool getgps;
-	double freq;
-	double gain;
-	double samp_rate;
-	double atten;
-	double bandwidth;
-	double lo_offset;
-	double tx_power;
-	char mboard_addr[34];
-	char channel_list[14];
-	char band[3];
-	char technology[6];
-	int32_t num_channels;
-	char interface[50];
-	char handshake[200];
-	char offlinePcap[200];
+struct pcap_file_hdr {
+		uint32_t magic_number;   /* magic number */
+		uint16_t version_major;  /* major version number */
+		uint16_t version_minor;  /* minor version number */
+		int32_t  thiszone;       /* GMT to local correction */
+		uint32_t sigfigs;        /* accuracy of timestamps */
+		uint32_t snaplen;        /* max length of captured packets, in octets */
+		uint32_t network;        /* data link type */
+};
+enum LinkType {
+	WIFI = 127,
+	ZIGBEE = 195
 };
 #endif
