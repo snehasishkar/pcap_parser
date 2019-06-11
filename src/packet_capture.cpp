@@ -462,6 +462,8 @@ int32_t is_filtered_essid(unsigned char * essid)
 
 double wifi_distance(int32_t freq, int32_t siglev)
 {
+  if(freq==0||siglev==0)
+	  return 0;
   double exp = (27.55 - (20 * log10(freq)) + abs(siglev)) / 20.0;
   return pow(10.0, exp);
 }
@@ -481,14 +483,23 @@ void packet_handler(u_char *args, const struct pcap_pkthdr *pkh, const u_char *p
                 pcap_dump((unsigned char*)offline_dump, pkh, packet);
 	int32_t SNR = packet[14];
 	int32_t signal_strength = 0;
-	if(packet[15]==1 && packet[16]==0 && packet[17]==0){
-		signal_strength = packet[14] - 256;
+	double frequency = 0;
+	if(offset==36){
+		signal_strength = packet[30] - 256;
 		SNR = 0;
+		frequency = (int32_t)packet[27]*256 + (int32_t)packet[26];
 	}
 	else{
-		signal_strength = packet[15] - 256;
+		if(packet[15]==1 && packet[16]==0 && packet[17]==0){
+			signal_strength = packet[14] - 256;
+			SNR = 0;
+		}
+		else{
+			signal_strength = packet[15] - 256;
+		}
+		frequency = (int32_t)packet[11]*256 + (int32_t)packet[10];
 	}
-	double frequency = (int32_t)packet[11]*256 + (int32_t)packet[10];
+
 	const u_char *h80211;
 	h80211 = packet + offset;
 	int32_t i, n, seq, msd, dlen, clen, o;
